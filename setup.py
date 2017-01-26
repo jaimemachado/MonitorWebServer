@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 from setuptools import setup
+
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
 setup(
     version='0.1',
     description='Monitor WebServer',
@@ -7,5 +11,5 @@ setup(
     author='Jaime Machado',
     license='MIT',
     packages=['monitorwebserver'],
-    install_requires=['pynma', 'attrdict']
+    install_requires=requirements
 )
