@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # sample usage: checksites.py config file
-
+import inspect
 import pickle, os, sys, logging
 from httplib import HTTPConnection, socket
 from smtplib import SMTP
@@ -10,6 +10,7 @@ import ConfigParser
 import json
 from urlparse import urlparse
 import urllib2
+import pynma
 
 class MonitorServer(object):
     def email_alert(self, message, status):
@@ -22,6 +23,10 @@ class MonitorServer(object):
         server.sendmail(fromaddr, toaddrs, 'Subject: %s\r\n%s' % (status, message))
         server.quit()
 
+    def notifyMyAndroid(self, message, status):
+        p = pynma.PyNMA(self.notifyMyAndoridkeys);
+
+        p.push(application="MonitorServer", event='Status: %s\r\n%s' % (status, message), priority=0);
 
     def get_site_status(self, url):
         response = self.get_response(url)
@@ -38,11 +43,17 @@ class MonitorServer(object):
         try:
             result = urllib2.urlopen(url.geturl());
             return result;
-        except socket.error:
-            return None
-        except:
-            logging.error('Bad URL:', url)
-            exit(1)
+        except urllib2.HTTPError, e:
+            logging.error('HTTPError = ' + str(e.code))
+        except urllib2.URLError, e:
+            logging.error('URLError = ' + str(e.reason))
+        except urllib2.HTTPException, e:
+            logging.error('HTTPException')
+        except Exception:
+            import traceback
+            urllib2.error('generic exception: ' + traceback.format_exc())
+        return None
+
 
 
     def get_headers(self, url):
@@ -66,6 +77,9 @@ class MonitorServer(object):
                 # Email status messages
                 if(self.enableEmail):
                     self.email_alert(str(self.get_headers(url)), friendly_status)
+                if(self.enableNotifyAndroid):
+                    self.notifyMyAndroid(str(self.get_headers(url)), friendly_status);
+
             prev_results[url.geturl()] = status
 
         return is_status_changed
@@ -116,16 +130,26 @@ class MonitorServer(object):
         # Store results in pickle file
         self.store_results(pickle_file, pickledata)
 
-    def parseConfig(self):
+
+    def parseMonitorDevices(self):
         #Server
-        tempUrls = json.loads(self.config.get("Servers", "urls"));
+        tempUrls = json.loads(self.monitorDevicesConfig.get("MonitorServers", "urls"));
         self.urls = []
         for url in tempUrls:
             self.urls.append(urlparse(url.encode('ascii', 'ignore')));
 
-
+    def parseConfig(self):
         #Config
         self.enableEmail = self.config.getboolean("Config", "enableEmailSend");
+        self.enableNotifyAndroid = self.config.getboolean("Config", "enableNotifyMyAndroid");
+
+        #NotifyMyAndroid
+        tempKeys = json.loads(self.config.get("NotifyMyAndroid", "nmaKey"))
+        self.notifyMyAndoridkeys = [];
+        for key in tempKeys:
+            self.notifyMyAndoridkeys.append(key.encode('ascii', 'ignore'));
+
+        #Email
         self.Email = AttrDict();
         self.Email.fromaddr = self.config.get("Email", "fromaddr");
         self.Email.toaddr = self.config.get("Email", "toaddr");
@@ -140,14 +164,22 @@ class MonitorServer(object):
             self.checkstatusurls.append(urlparse(url.encode('ascii', 'ignore')));
 
 
-    def __init__(self, config):
+    def __init__(self, config, monitorDevicesConfig):
         self.config = config
+        self.monitorDevicesConfig = monitorDevicesConfig
         self.parseConfig();
+        self.parseMonitorDevices();
+
 
 if __name__ == '__main__':
-    configFile = sys.argv[1];
+
+    currentPath = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())));
+    configFile = currentPath + "\monitorserver.cfg";
+    monitorDevicesConfigFile = currentPath + "\monitordevices.cfg";
     # First arg is script name, skip it
     config = ConfigParser.ConfigParser(allow_no_value=True);
     config.read([configFile])
-    monitorServer = MonitorServer(config);
+    monitorDevicesConfig = ConfigParser.ConfigParser(allow_no_value=True);
+    monitorDevicesConfig.read([monitorDevicesConfigFile])
+    monitorServer = MonitorServer(config, monitorDevicesConfig);
     monitorServer.main()
