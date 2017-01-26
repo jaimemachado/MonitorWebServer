@@ -174,8 +174,8 @@ class MonitorServer(object):
 if __name__ == '__main__':
 
     currentPath = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())));
-    configFile = currentPath + "\monitorserver.cfg";
-    monitorDevicesConfigFile = currentPath + "\monitordevices.cfg";
+    configFile = currentPath + "/../monitorserver.cfg";
+    monitorDevicesConfigFile = currentPath + "/monitordevices.cfg";
     # First arg is script name, skip it
     config = ConfigParser.ConfigParser(allow_no_value=True);
     config.read([configFile])
